@@ -8,6 +8,7 @@ export default function App() {
   const [currencyTo, setCurrencyTo] = useState("EUR");
   const [output, setOutput] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const API = `https://api.frankfurter.app/latest?amount=${inputAmount}&from=${currencyFrom}&to=${currencyTo}`;
 
@@ -30,29 +31,54 @@ export default function App() {
 
   useEffect(
     function () {
+      const controller = new AbortController();
+
       if (!inputAmount) return;
       setIsLoading(true);
+      setError("");
       async function fetchCurrency() {
         try {
-          const response = await fetch(API);
+          const response = await fetch(API, { signal: controller.signal });
 
           if (!response.ok) throw new Error("Something went wrong");
 
           const data = await response.json();
 
+          if (!data) throw new Error("Currency not available...");
+
           console.log(data);
           setOutput(data.rates);
         } catch (error) {
           setIsLoading(false);
+          setError(error.message);
           console.log(error.message);
+
+          if (error.name !== "AbortError") {
+            setError(error.message);
+          }
         } finally {
           setIsLoading(false);
         }
       }
 
       fetchCurrency();
+
+      return function () {
+        controller.abort();
+      };
     },
-    [inputAmount, currencyFrom, currencyTo]
+    [inputAmount, currencyFrom, currencyTo, API]
+  );
+
+  useEffect(
+    function () {
+      if (!inputAmount) return;
+
+      return function () {
+        setOutput(0);
+      };
+    },
+    [inputAmount]
   );
 
   return (
@@ -71,6 +97,7 @@ export default function App() {
         <option value="EUR">EUR</option>
         <option value="CAD">CAD</option>
         <option value="INR">INR</option>
+        <option value="UGX">UGX</option>
       </select>
       <select
         defaultValue="EUR"
@@ -80,10 +107,17 @@ export default function App() {
         <option value="EUR">EUR</option>
         <option value="CAD">CAD</option>
         <option value="INR">INR</option>
+        <option value="UGX">UGX</option>
       </select>
-      {isLoading ? <Loader /> : <p>{!newAmount ? `OUTPUT` : newAmount}</p>}
+      {isLoading && <Loader />}
+      {error && <ErrorMessage message={error} />}
+      {!isLoading && !error && <p>{!newAmount ? `OUTPUT` : newAmount}</p>}
     </div>
   );
+}
+
+function ErrorMessage({ message }) {
+  return <p>{message}</p>;
 }
 
 function Loader() {
